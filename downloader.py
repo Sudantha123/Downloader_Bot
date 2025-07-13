@@ -1,4 +1,3 @@
-
 import os
 import aiohttp
 import aiofiles
@@ -42,15 +41,11 @@ class VideoDownloader:
                 await progress_callback("🔍 Validating download link...")
             
             filename = self.get_filename_from_url(url)
-            # Ensure filename has proper extension for video
-            if not any(filename.lower().endswith(ext) for ext in ['.mp4', '.avi', '.mkv', '.mov', '.wmv', '.flv', '.webm']):
-                filename = filename.rsplit('.', 1)[0] + '.mp4' if '.' in filename else filename + '.mp4'
-            
             file_path = self.download_dir / filename
             
             logger.info(f"Starting download: {url}")
-            
-            # Set up headers to mimic a browser request
+
+            # Updated headers with user agent to mimic a browser
             headers = {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
                 'Accept': 'video/mp4,video/*,*/*;q=0.8',
@@ -77,7 +72,6 @@ class VideoDownloader:
                     content_type = response.headers.get('content-type', '').lower()
                     if content_type and not any(vid_type in content_type for vid_type in ['video/', 'application/octet-stream', 'binary/octet-stream']):
                         logger.warning(f"Content-Type '{content_type}' may not be a video file")
-                        # Continue anyway as some servers don't set proper content-type
                     
                     # Get file size for progress tracking
                     file_size = response.headers.get('content-length')
@@ -125,4 +119,3 @@ class VideoDownloader:
                 logger.info(f"Deleted file: {file_path}")
         except Exception as e:
             logger.error(f"Failed to delete file {file_path}: {e}")
-        
