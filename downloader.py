@@ -1,3 +1,4 @@
+
 import os
 import aiohttp
 import aiofiles
@@ -27,6 +28,19 @@ class VideoDownloader:
     async def download_video(self, url, timeout=300, progress_callback=None):
         """Download video from direct link with progress tracking"""
         try:
+            # Validate URL format
+            if not url or not isinstance(url, str):
+                logger.error("Invalid URL provided")
+                return None
+            
+            # Clean the URL
+            url = url.strip()
+            
+            # Check if URL is accessible
+            logger.info(f"Validating URL: {url}")
+            if progress_callback:
+                await progress_callback("🔍 Validating download link...")
+            
             filename = self.get_filename_from_url(url)
             # Ensure filename has proper extension for video
             if not any(filename.lower().endswith(ext) for ext in ['.mp4', '.avi', '.mkv', '.mov', '.wmv', '.flv', '.webm']):
@@ -36,13 +50,34 @@ class VideoDownloader:
             
             logger.info(f"Starting download: {url}")
             
+            # Set up headers to mimic a browser request
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+                'Accept': 'video/mp4,video/*,*/*;q=0.8',
+                'Accept-Language': 'en-US,en;q=0.5',
+                'Accept-Encoding': 'identity',
+                'Connection': 'keep-alive',
+                'Upgrade-Insecure-Requests': '1',
+            }
+            
             timeout_config = aiohttp.ClientTimeout(total=timeout)
             
-            async with aiohttp.ClientSession(timeout=timeout_config) as session:
-                async with session.get(url) as response:
+            async with aiohttp.ClientSession(timeout=timeout_config, headers=headers) as session:
+                async with session.get(url, allow_redirects=True) as response:
+                    logger.info(f"Response status: {response.status}")
+                    logger.info(f"Content-Type: {response.headers.get('content-type', 'unknown')}")
+                    
                     if response.status != 200:
                         logger.error(f"HTTP {response.status} error for URL: {url}")
+                        if progress_callback:
+                            await progress_callback(f"❌ HTTP {response.status} error - Invalid link or server issue")
                         return None
+                    
+                    # Check if content is actually a video
+                    content_type = response.headers.get('content-type', '').lower()
+                    if content_type and not any(vid_type in content_type for vid_type in ['video/', 'application/octet-stream', 'binary/octet-stream']):
+                        logger.warning(f"Content-Type '{content_type}' may not be a video file")
+                        # Continue anyway as some servers don't set proper content-type
                     
                     # Get file size for progress tracking
                     file_size = response.headers.get('content-length')
@@ -90,3 +125,4 @@ class VideoDownloader:
                 logger.info(f"Deleted file: {file_path}")
         except Exception as e:
             logger.error(f"Failed to delete file {file_path}: {e}")
+        
