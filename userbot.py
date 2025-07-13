@@ -61,10 +61,10 @@ class TelegramUserbot:
             
             if not await self.client.is_user_authorized():
                 if self.session_string:
-                    logger.error("SESSION_STRING is invalid or expired.")
+                    logger.error("SESSION_STRING is invalid or expired. Please generate a new one.")
                 else:
-                    logger.error("No valid SESSION_STRING provided.")
-                logger.error("Please generate a new SESSION_STRING using a Telethon authentication script.")
+                    logger.error("No valid SESSION_STRING provided. Please add it to environment variables.")
+                logger.error("To generate SESSION_STRING, use: https://replit.com/@username/telegram-session-generator")
                 return False
             
             logger.info("Userbot initialized successfully")
