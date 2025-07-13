@@ -1,3 +1,4 @@
+
 import os
 import asyncio
 import logging
@@ -5,6 +6,7 @@ from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 from downloader import VideoDownloader
 from userbot import TelegramUserbot
+from keep_alive import keep_alive
 
 # Configure logging
 logging.basicConfig(
@@ -45,11 +47,20 @@ class TelegramBot:
     
     async def handle_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle incoming messages with download links"""
-        message_text = update.message.text
+        message_text = update.message.text.strip()
         
         # Check if message contains a URL
         if not (message_text.startswith('http://') or message_text.startswith('https://')):
-            await update.message.reply_text("❌ Please send a valid direct download link!")
+            await update.message.reply_text(
+                "❌ Please send a valid direct download link!\n\n"
+                "Example: https://example.com/video.mp4\n"
+                "Make sure it's a direct link to a video file."
+            )
+            return
+        
+        # Basic URL validation
+        if len(message_text) < 10 or ' ' in message_text:
+            await update.message.reply_text("❌ Invalid URL format. Please send a proper direct download link!")
             return
         
         # Send processing message
@@ -93,20 +104,34 @@ class TelegramBot:
     
     def run(self):
         """Start the bot"""
-        application = Application.builder().token(self.bot_token).build()
-        
-        # Add handlers
-        application.add_handler(CommandHandler("start", self.start_command))
-        application.add_handler(CommandHandler("help", self.help_command))
-        application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, self.handle_message))
-        
-        # Run the bot
-        logger.info("Starting bot...")
-        application.run_polling(allowed_updates=Update.ALL_TYPES)
+        try:
+            application = Application.builder().token(self.bot_token).build()
+            
+            # Add handlers
+            application.add_handler(CommandHandler("start", self.start_command))
+            application.add_handler(CommandHandler("help", self.help_command))
+            application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, self.handle_message))
+            
+            # Run the bot
+            logger.info("Starting bot...")
+            application.run_polling(
+                allowed_updates=Update.ALL_TYPES,
+                drop_pending_updates=True,  # Clear any pending updates
+                stop_signals=None  # Handle shutdown gracefully
+            )
+        except Exception as e:
+            logger.error(f"Bot polling error: {e}")
+            raise
 
 if __name__ == "__main__":
     try:
+        # Start the keep_alive web server
+        keep_alive()
+        logger.info("Keep-alive server started on port 8080")
+        
+        # Start the main bot
         bot = TelegramBot()
         bot.run()
     except Exception as e:
         logger.error(f"Failed to start bot: {e}")
+            
