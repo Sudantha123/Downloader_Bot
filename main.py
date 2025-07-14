@@ -493,4 +493,123 @@ class TelegramBot:
                         try:
                             await self.current_item.progress_message.edit_text(
                                 f"📥 **Downloading**\n\n"
-         
+                                f"🔗 URL: {self.current_item.url[:50]}...\n"
+                                f"📊 {message}"
+                            )
+                        except:
+                            pass
+                
+                # Download the file
+                file_path = await self.downloader.download_video(
+                    self.current_item.url, 
+                    progress_callback=progress_callback
+                )
+                
+                if not file_path or self.cancelled:
+                    try:
+                        await self.current_item.progress_message.edit_text(
+                            f"❌ **Download Failed**\n\n"
+                            f"🔗 URL: {self.current_item.url[:50]}...\n"
+                            f"💔 Could not download the file"
+                        )
+                    except:
+                        pass
+                    self.current_item.status = "failed"
+                    self.current_item = None
+                    continue
+                
+                # Update status to uploading
+                self.current_item.status = "uploading"
+                
+                # Create upload progress callback
+                async def upload_progress_callback(message):
+                    if self.current_item.progress_message and not self.cancelled:
+                        try:
+                            await self.current_item.progress_message.edit_text(
+                                f"📤 **Uploading to Telegram**\n\n"
+                                f"🔗 URL: {self.current_item.url[:50]}...\n"
+                                f"📊 {message}"
+                            )
+                        except:
+                            pass
+                
+                # Send via userbot
+                success = await self.userbot.send_video_to_group(
+                    file_path, 
+                    progress_callback=upload_progress_callback
+                )
+                
+                if success and not self.cancelled:
+                    try:
+                        await self.current_item.progress_message.edit_text(
+                            f"✅ **Upload Completed!**\n\n"
+                            f"🔗 URL: {self.current_item.url[:50]}...\n"
+                            f"📱 Video sent to target group successfully!\n"
+                            f"🗑️ File cleaned up from storage"
+                        )
+                    except:
+                        pass
+                    self.current_item.status = "completed"
+                elif not self.cancelled:
+                    try:
+                        await self.current_item.progress_message.edit_text(
+                            f"❌ **Upload Failed**\n\n"
+                            f"🔗 URL: {self.current_item.url[:50]}...\n"
+                            f"💔 Could not send to target group"
+                        )
+                    except:
+                        pass
+                    self.current_item.status = "failed"
+                
+                # Clean up current item
+                self.current_item = None
+                
+                # Small delay between items
+                await asyncio.sleep(2)
+            
+            # Reset cancellation flag
+            self.cancelled = False
+            
+        except Exception as e:
+            logger.error(f"Error in process_queue: {e}")
+        finally:
+            self.is_processing = False
+            self.current_item = None
+            logger.info("Queue processing finished")
+    
+    def run(self):
+        """Start the bot"""
+        try:
+            self.application = Application.builder().token(self.bot_token).build()
+            
+            # Add handlers
+            self.application.add_handler(CommandHandler("start", self.start_command))
+            self.application.add_handler(CommandHandler("help", self.help_command))
+            self.application.add_handler(CommandHandler("status", self.status_command))
+            self.application.add_handler(CommandHandler("queue", self.queue_command))
+            self.application.add_handler(CommandHandler("cancel", self.cancel_command))
+            self.application.add_handler(CommandHandler("del_storage", self.del_storage_command))
+            self.application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, self.handle_message))
+            
+            # Run the bot
+            logger.info("Starting bot...")
+            self.application.run_polling(
+                allowed_updates=Update.ALL_TYPES,
+                drop_pending_updates=True,  # Clear any pending updates
+                stop_signals=None  # Handle shutdown gracefully
+            )
+        except Exception as e:
+            logger.error(f"Bot polling error: {e}")
+            raise
+
+if __name__ == "__main__":
+    try:
+        # Start the keep_alive web server
+        keep_alive()
+        logger.info("Keep-alive server started on port 8080")
+        
+        # Start the main bot
+        bot = TelegramBot()
+        bot.run()
+    except Exception as e:
+        logger.error(f"Failed to start bot: {e}")
